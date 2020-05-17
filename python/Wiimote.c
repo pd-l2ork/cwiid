@@ -75,6 +75,7 @@ typedef struct {
 	PyObject_HEAD
 	cwiid_wiimote_t *wiimote;
 	PyObject *callback;
+	bdaddr_t bdaddr;
 	char close_on_dealloc;
 } Wiimote;
 
@@ -93,6 +94,7 @@ static int
 	Wiimote_set_mesg_callback(Wiimote *self, PyObject *args, void *closure);
 static PyObject *Wiimote_get_mesg(Wiimote *self);
 static PyObject *Wiimote_get_state(Wiimote *self, void *closure);
+static PyObject *Wiimote_get_address(Wiimote *self, void *closure);
 static PyObject *Wiimote_get_acc_cal(Wiimote *self, PyObject *args,
                                      PyObject *kwds);
 static PyObject *Wiimote_get_balance_cal(Wiimote *self);
@@ -144,6 +146,7 @@ static PyGetSetDef Wiimote_GetSet[] = {
 	{"state", (getter)Wiimote_get_state, NULL, "Wiimote state", NULL},
 	{"mesg_callback", NULL, (setter)Wiimote_set_mesg_callback,
 	 "Wiimote message callback", NULL},
+	{"address", (getter)Wiimote_get_address, NULL, "Wiimote address", NULL},
 	{"led", NULL, (setter)Wiimote_set_led, "Wiimote led state", NULL},
 	{"rumble", NULL, (setter)Wiimote_set_rumble, "Wiimote rumble state", NULL},
 	{"rpt_mode", NULL, (setter)Wiimote_set_rpt_mode, "Wiimote report mode",
@@ -225,7 +228,6 @@ static int Wiimote_init(Wiimote* self, PyObject* args, PyObject *kwds)
 	PyObject *PyObj;
 	cwiid_wiimote_t *wiimote = NULL;
 	char *str_bdaddr = NULL;
-	bdaddr_t bdaddr;
 	int flags = 0;
 
 	/* Overloaded function - if a single CObject is passed in, it's
@@ -245,17 +247,17 @@ static int Wiimote_init(Wiimote* self, PyObject* args, PyObject *kwds)
 		}
 
 		if (str_bdaddr) {
-			if (str2ba(str_bdaddr, &bdaddr)) {
+			if (str2ba(str_bdaddr, &self->bdaddr)) {
 				PyErr_SetString(PyExc_ValueError, "bad bdaddr");
 				return -1;
 			}
 		}
 		else {
-			bdaddr = *BDADDR_ANY;
+			self->bdaddr = *BDADDR_ANY;
 		}
 
 		Py_BEGIN_ALLOW_THREADS
-		wiimote = cwiid_open(&bdaddr, flags);
+		wiimote = cwiid_open(&self->bdaddr, flags);
 		Py_END_ALLOW_THREADS
 		if (!wiimote) {
 			PyErr_SetString(PyExc_RuntimeError,
@@ -625,6 +627,14 @@ static PyObject *Wiimote_get_state(Wiimote* self, void *closure)
 
 	return PyState;
 }
+
+static PyObject *Wiimote_get_address(Wiimote* self, void* closure)
+{
+	char address[40];
+	ba2str(&self->bdaddr,address);
+	return Py_BuildValue("s", address);
+}
+
 
 static PyObject *Wiimote_get_acc_cal(Wiimote *self, PyObject *args,
                                      PyObject *kwds)
