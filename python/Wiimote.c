@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2007 Justin M. Tulloss <jmtulloss@gmail.com>
+ * Copyright (C) 2007 Justin M. Tulloss <jmtulloss@gmail.com>, L. Donnie Smith <donnie.smith@gatech.edu>
  *
  * Interface from Python to libcwiid
  *
@@ -18,64 +18,19 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, 
  * Boston, MA  02110-1301  USA
  *
- * ChangeLog:
- * 2012-04-11 Ivica Ico Bukvic <ico@vt.edu>
- * * updated code to work with L2Ork changes
- *
- * 2008-01-19 L. Donnie Smith <cwiid@abstrakraft.org>
- * * print callback error tracebacks
- *
- * 2007-06-18 L. Donnie Smith <cwiid@abstrakraft.org>
- * * revised error messages and doc strings
- *
- * 2007-06-05 L. Donnie Smith <cwiid@abstrakraft.org>
- * * removed Wiimote_FromC function
- * * added bdaddr argument to Wiimote.init
- * * overloaded Wiimote.init to accept CObject (existing wiimote),
- *   and logic to avoid closing it on dealloc
- *
- * 2007-06-01 L. Donnie Smith <cwiid@abstrakraft.org>
- * * added Wiimote_FromC
- * * added get_acc_cal
- *
- * 2007-05-27 Arthur Peters <amp@singingwizard.org>
- * * removed set_mesg_callback from methods table
- *
- * 2007-05-22 L. Donnie Smith <cwiid@abstrakraft.org>
- * * changed disconnect to close
- * * replaced command with attributes for rpt_mode, rumble, led,
- *   added request_status method
- * * fixed memory leak in get_mesg
- * * added function names to argument parsing errors
- * * changed to processMesg to ConvertMesgArray with global visibility
- *
- * 2007-05-15 L. Donnie Smith <cwiid@abstrakraft.org>
- * * revised message types
- * * revised argument/keylist parsing
- *
- * 2007-05-14 L. Donnie Smith <cwiid@abstrakraft.org>
- * * moved Wiimote class to separate file
  */
 
 #include "Python.h"
 #include "structmember.h"
 #include <errno.h>
 #include <bluetooth/bluetooth.h>
-#include "cwiid.h"
-
-#if (PY_VERSION_HEX < 0x02050000)
-  #ifndef PY_SSIZE_T_MIN
-    typedef int Py_ssize_t;
-    #define PY_SSIZE_T_MAX INT_MAX
-    #define PY_SSIZE_T_MIN INT_MIN
-  #endif
-#endif
+#include <cwiid.h>
 
 typedef struct {
 	PyObject_HEAD
 	cwiid_wiimote_t *wiimote;
-	PyObject *callback;
 	bdaddr_t bdaddr;
+	PyObject *callback;
 	char close_on_dealloc;
 } Wiimote;
 
@@ -94,7 +49,7 @@ static int
 	Wiimote_set_mesg_callback(Wiimote *self, PyObject *args, void *closure);
 static PyObject *Wiimote_get_mesg(Wiimote *self);
 static PyObject *Wiimote_get_state(Wiimote *self, void *closure);
-static PyObject *Wiimote_get_address(Wiimote *self, void *closure);
+static PyObject *Wiimote_get_address(Wiimote* self, void* closure);
 static PyObject *Wiimote_get_acc_cal(Wiimote *self, PyObject *args,
                                      PyObject *kwds);
 static PyObject *Wiimote_get_balance_cal(Wiimote *self);
@@ -144,9 +99,9 @@ static PyMethodDef Wiimote_Methods[] =
 
 static PyGetSetDef Wiimote_GetSet[] = {
 	{"state", (getter)Wiimote_get_state, NULL, "Wiimote state", NULL},
+	{"address", (getter)Wiimote_get_address, NULL, "Wiimote address", NULL},
 	{"mesg_callback", NULL, (setter)Wiimote_set_mesg_callback,
 	 "Wiimote message callback", NULL},
-	{"address", (getter)Wiimote_get_address, NULL, "Wiimote address", NULL},
 	{"led", NULL, (setter)Wiimote_set_led, "Wiimote led state", NULL},
 	{"rumble", NULL, (setter)Wiimote_set_rumble, "Wiimote rumble state", NULL},
 	{"rpt_mode", NULL, (setter)Wiimote_set_rpt_mode, "Wiimote report mode",
@@ -155,12 +110,11 @@ static PyGetSetDef Wiimote_GetSet[] = {
 };
 
 PyTypeObject Wiimote_Type = {
-	PyObject_HEAD_INIT(NULL)
-	0,						/* ob_size */
-	"cwiid.Wiimote",		/* tp_name */
-	sizeof(Wiimote),		/* tp_basicsize */
+	PyVarObject_HEAD_INIT(NULL, 0)
+	"cwiid.Wiimote",				/* tp_name */
+	sizeof(Wiimote),				/* tp_basicsize */
 	0,						/* tp_itemsize */
-	(destructor)Wiimote_dealloc,	/* tp_dealloc */
+	(destructor)Wiimote_dealloc,			/* tp_dealloc */
 	0,						/* tp_print */
 	0,						/* tp_getattr */
 	0,						/* tp_setattr */
@@ -176,24 +130,24 @@ PyTypeObject Wiimote_Type = {
 	0,						/* tp_setattro */
 	0,						/* tp_as_buffer */
 	Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,	/* tp_flags */
-	"CWiid Wiimote connection object",	/* tp_doc */
+	"CWiid Wiimote connection object",		/* tp_doc */
 	0,						/* tp_traverse */
 	0,						/* tp_clear */
 	0,						/* tp_richcompare */
 	0,						/* tp_weaklistoffset */
 	0,						/* tp_iter */
 	0,						/* tp_iternext */
-	Wiimote_Methods,		/* tp_methods */
+	Wiimote_Methods,				/* tp_methods */
 	0,						/* tp_members */
-	Wiimote_GetSet,			/* tp_getset */
+	Wiimote_GetSet,					/* tp_getset */
 	0,						/* tp_base */
 	0,						/* tp_dict */
 	0,						/* tp_descr_get */
 	0,						/* tp_descr_set */
 	0,						/* tp_dictoffset */
-	(initproc)Wiimote_init,	/* tp_init */
+	(initproc)Wiimote_init,				/* tp_init */
 	0,						/* tp_alloc */
-	Wiimote_new,			/* tp_new */
+	Wiimote_new,					/* tp_new */
 };
 
 /* Allocate and deallocate functions */
@@ -207,7 +161,6 @@ static PyObject *
 	}
 
 	self->wiimote = NULL;
-	Py_INCREF(self->callback = Py_None);
 	self->close_on_dealloc = 0;
 
 	return (PyObject*) self;
@@ -219,7 +172,8 @@ static void Wiimote_dealloc(Wiimote *self)
 		cwiid_close(self->wiimote);
 	}
 	Py_XDECREF(self->callback);
-	self->ob_type->tp_free((PyObject *)self);
+	//self->ob_type->tp_free((PyObject *)self);
+	Py_TYPE(self)->tp_free((PyObject *)self);
 }
 
 static int Wiimote_init(Wiimote* self, PyObject* args, PyObject *kwds)
@@ -234,8 +188,8 @@ static int Wiimote_init(Wiimote* self, PyObject* args, PyObject *kwds)
 	 * an existing CObject.  Otherwise, create a new one */
 	if (PyTuple_Size(args) == 1) {
 		PyObj = PyTuple_GET_ITEM(args, 0);
-		if (PyCObject_Check(PyObj)) {
-			wiimote = PyCObject_AsVoidPtr(PyObj);
+		if (PyCapsule_CheckExact(PyObj)) {
+			wiimote = PyCapsule_GetPointer(PyObj, "dynamr");
 			self->close_on_dealloc = 0;
 		}
 	}
@@ -256,6 +210,10 @@ static int Wiimote_init(Wiimote* self, PyObject* args, PyObject *kwds)
 			self->bdaddr = *BDADDR_ANY;
 		}
 
+        if (PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION == 5) {
+            PyEval_InitThreads();
+        }
+
 		Py_BEGIN_ALLOW_THREADS
 		wiimote = cwiid_open(&self->bdaddr, flags);
 		Py_END_ALLOW_THREADS
@@ -270,6 +228,7 @@ static int Wiimote_init(Wiimote* self, PyObject* args, PyObject *kwds)
 	}
 
 	cwiid_set_data(wiimote, self);
+	Py_INCREF(self->callback = Py_None);
 	self->wiimote = wiimote;
 	return 0;
 }
@@ -373,6 +332,7 @@ static int
 
 	Py_INCREF(NewCallback);
 	Py_DECREF(OldCallback);
+
 	self->callback = NewCallback;
 
 	return 0;
@@ -494,7 +454,7 @@ static PyObject *Wiimote_get_state(Wiimote* self, void *closure)
 				}
 
 				if (state.ir_src[i].size != -1) {
-					if (!(PySize = PyInt_FromLong(
+					if (!(PySize = PyLong_FromLong(
 					  (long)state.ir_src[i].size))) {
 						Py_DECREF(PyState);
 						Py_DECREF(PyIrSrc);
@@ -601,11 +561,15 @@ static PyObject *Wiimote_get_state(Wiimote* self, void *closure)
 		break;
 	case CWIID_EXT_MOTIONPLUS:
 		if (state.rpt_mode & CWIID_RPT_MOTIONPLUS) {
-			PyExt = Py_BuildValue("{s:(I,I,I)}",
+			PyExt = Py_BuildValue("{s:(I,I,I),s:(I,I,I)}",
 		                          "angle_rate",
-		                            state.ext.motionplus.angle_rate[CWIID_PHI],
-		                            state.ext.motionplus.angle_rate[CWIID_THETA],
-		                            state.ext.motionplus.angle_rate[CWIID_PSI]);
+                                  state.ext.motionplus.angle_rate[CWIID_PHI],
+                                  state.ext.motionplus.angle_rate[CWIID_THETA],
+                                  state.ext.motionplus.angle_rate[CWIID_PSI],
+                                  "low_speed",
+                                  state.ext.motionplus.low_speed[CWIID_PHI],
+                                  state.ext.motionplus.low_speed[CWIID_THETA],
+                                  state.ext.motionplus.low_speed[CWIID_PSI]);
 
 			if (!PyExt) {
 				Py_DECREF(PyState);
@@ -634,7 +598,6 @@ static PyObject *Wiimote_get_address(Wiimote* self, void* closure)
 	ba2str(&self->bdaddr,address);
 	return Py_BuildValue("s", address);
 }
-
 
 static PyObject *Wiimote_get_acc_cal(Wiimote *self, PyObject *args,
                                      PyObject *kwds)
@@ -725,7 +688,7 @@ static int Wiimote_set_led(Wiimote *self, PyObject *PyLed, void *closure)
 		return -1;
 	}
 
-	if (((led = PyInt_AsLong(PyLed)) == -1) && PyErr_Occurred()) {
+	if (((led = PyLong_AsLong(PyLed)) == -1) && PyErr_Occurred()) {
 		return -1;
 	}
 
@@ -748,7 +711,7 @@ static int
 		return -1;
 	}
 
-	if (((rumble = PyInt_AsLong(PyRumble)) == -1) && PyErr_Occurred()) {
+	if (((rumble = PyLong_AsLong(PyRumble)) == -1) && PyErr_Occurred()) {
 		return -1;
 	}
 
@@ -771,7 +734,7 @@ static int
 		return -1;
 	}
 
-	if (((rpt_mode = PyInt_AsLong(PyRptMode)) == -1) && PyErr_Occurred()) {
+	if (((rpt_mode = PyLong_AsLong(PyRptMode)) == -1) && PyErr_Occurred()) {
 		return -1;
 	}
 
@@ -844,7 +807,7 @@ static PyObject *Wiimote_read(Wiimote *self, PyObject *args, PyObject *kwds)
 		return NULL;
 	}
 
-	if (!(pyRetBuf = PyBuffer_New(len))) {
+	if (!(pyRetBuf = malloc(len))) {
 		return NULL;
 	}
 	if (PyObject_AsWriteBuffer(pyRetBuf, &buf, &len)) {
@@ -931,7 +894,8 @@ static void CallbackBridge(cwiid_wiimote_t *wiimote, int mesg_count,
  *                               "right_bottom":right_bottom,
  *                               "left_top":left_top,
  *                               "left_bottom":left_bottom},
- *          (cwiid.MOTIONPLUS_MESG,{"angle_rate":(psi,theta,phi)},
+ *          (cwiid.MOTIONPLUS_MESG,{"angle_rate":(psi,theta,phi),
+ *                                  "low_speed":(psi,theta,phi)},
  *          (cwiid.ERROR_MESG,error)]
  */
 PyObject *ConvertMesgArray(int mesg_count, union cwiid_mesg mesg[])
@@ -985,7 +949,7 @@ PyObject *ConvertMesgArray(int mesg_count, union cwiid_mesg mesg[])
 					}
 
 					if (mesg[i].ir_mesg.src[j].size != -1) {
-						if (!(PySize = PyInt_FromLong(
+						if (!(PySize = PyLong_FromLong(
 						  (long)mesg[i].ir_mesg.src[j].size))) {
 							Py_DECREF(PyIrList);
 							Py_DECREF(PyIrSrc);
@@ -1050,11 +1014,16 @@ PyObject *ConvertMesgArray(int mesg_count, union cwiid_mesg mesg[])
 			               mesg[i].balance_mesg.left_bottom);
 			break;
 		case CWIID_MESG_MOTIONPLUS:
-			mesgVal = Py_BuildValue("{s:(I,I,I)}",
+			mesgVal = Py_BuildValue("{s:(I,I,I),s:(I,I,I)}",
 			                        "angle_rate",
-			                          mesg[i].motionplus_mesg.angle_rate[CWIID_PHI],
-			                          mesg[i].motionplus_mesg.angle_rate[CWIID_THETA],
-			                          mesg[i].motionplus_mesg.angle_rate[CWIID_PSI]);
+                                    mesg[i].motionplus_mesg.angle_rate[CWIID_PHI],
+                                    mesg[i].motionplus_mesg.angle_rate[CWIID_THETA],
+                                    mesg[i].motionplus_mesg.angle_rate[CWIID_PSI],
+                                    "low_speed",
+                                    mesg[i].motionplus_mesg.low_speed[CWIID_PHI],
+                                    mesg[i].motionplus_mesg.low_speed[CWIID_THETA],
+                                    mesg[i].motionplus_mesg.low_speed[CWIID_PSI]);
+                                    
 			break;
 		case CWIID_MESG_ERROR:
 			mesgVal = Py_BuildValue("i", mesg[i].error_mesg.error);

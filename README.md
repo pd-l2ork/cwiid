@@ -1,3 +1,5 @@
+Minor changed Copyright (C) 2020 Alexander Pruss
+Python3 adaptation (c) by Azzra https://github.com/azzra
 Copyright (C) 2007 L. Donnie Smith <cwiid@abstrakraft.org>
 Copyright (C) 2011-2015 Ivica Ico Bukvic <ico@vt.edu> and Deba Pratim Saha <dpsaha@vt.edu>
 

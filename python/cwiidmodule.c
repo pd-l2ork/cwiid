@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2007 Justin M. Tulloss <jmtulloss@gmail.com>
+ * Copyright (C) 2007 Justin M. Tulloss <jmtulloss@gmail.com>, L. Donnie Smith <donnie.smith@gatech.edu>
  *
  * Interface from Python to libcwiid
  *
@@ -18,59 +18,13 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, 
  * Boston, MA  02110-1301  USA
  *
- * ChangeLog:
- * 2007-06-05 L. Donnie Smith <cwiid@abstrakraft.org>
- * * removed Wiimote_FromC function
- *
- * 2007-06-01 L. Donnie Smith <cwiid@abstrakraft.org>
- * * added CObjects for Wiimote_FromC and ConvertMesgArray
- *
- * 2007-05-22 L. Donnie Smith <cwiid@abstrakraft.org>
- * * clarified variable names
- *
- * 2007-05-14 L. Donnie Smith <cwiid@abstrakraft.org>
- * * moved Wiimote class to separate files
- *
- * 2007-05-12 L. Donnie Smith <cwiid@abstrakraft.org>
- * * added keywords to read
- * * finished get_mesg
- * * cleaned up types in get_state
- * * finished processMesgs
- *
- * 2007-05-09 L. Donnie Smith <cwiid@abstrakraft.org>
- * * finished get_state
- * * fixed read buffer issue
- * * implemented write
- * * cleaned up types
- * * removed notImplemented (no longer needed)
- *
- * 2007-05-07 L. Donnie Smith <cwiid@abstrakraft.org>
- * * C-style comments
- * * changed struct name to Wiimote
- * * removed dlopen, unused includes
- * * spaces to tabs, misc stylistic changes to match CWiid code
- * * changed self types to Wiimote
- * * made bdaddr local
- * * improved error checking in Wiimote_init
- * * implemented disconnect, enable, disable
- * * partially implemented get_state
- *
- * 2007-05-07 Justin M. Tulloss <jmtulloss@gmail.com>
- * * Refactored according to dsmith's wishes, removed unnecessary locks
- * * implemented read
- *
- * 2007-04-26 Justin M. Tulloss <jmtulloss@gmail.com>
- * * Updated for new libcwiid API
- *
- * 2007-04-24 Justin M. Tulloss <jmtulloss@gmail.com>
- * * Initial Changelog
  */
 
 #include "Python.h"
 
 #include <stdlib.h>
 
-#include "cwiid.h"
+#include <cwiid.h>
 #include "structmember.h"
 
 /* externally defined types */
@@ -78,7 +32,7 @@ extern PyTypeObject Wiimote_Type;
 extern PyObject *ConvertMesgArray(int, union cwiid_mesg []);
 
 /* cwiid module initializer */
-PyMODINIT_FUNC initcwiid(void);
+PyMODINIT_FUNC PyInit_cwiid(void);
 
 /* constants, enumerations */
 #define CWIID_CONST_MACRO(a) {#a, CWIID_##a}
@@ -181,36 +135,47 @@ static PyMethodDef Module_Methods[] =
 	{NULL, NULL, 0, NULL}
 };
 
-PyMODINIT_FUNC initcwiid(void)
+static struct PyModuleDef moduledef = {
+	PyModuleDef_HEAD_INIT,
+	"cwiid",        /* m_name */
+	"Cwiid FFS!",   /* m_doc */
+	-1,             /* m_size */
+	Module_Methods, /* m_methods */
+	NULL,           /* m_reload */
+	NULL,           /* m_traverse */
+	NULL,           /* m_clear */
+	NULL,           /* m_free */
+};
+
+PyMODINIT_FUNC PyInit_cwiid(void)
 {
 	PyObject *Module;
-	PyObject *CObj;
+	PyObject *CCapsule;
 	int i;
 
-	PyEval_InitThreads();
-
-	if (PyType_Ready(&Wiimote_Type) < 0) {
-		return;
+	if (!(Module = PyModule_Create(&moduledef))) {
+		return NULL;
 	}
 
-	if (!(Module = Py_InitModule3("cwiid", Module_Methods,
-	  "CWiid Wiimote Interface"))) {
-		return;
+	Wiimote_Type.tp_new = PyType_GenericNew;
+	if (PyType_Ready(&Wiimote_Type) < 0) {
+		return NULL;
 	}
 
 	Py_INCREF(&Wiimote_Type);
-	PyModule_AddObject(Module, "Wiimote", (PyObject*)&Wiimote_Type);
+	PyModule_AddObject(Module, "Wiimote", (PyObject *)&Wiimote_Type);
 
 	for (i = 0; cwiid_constants[i].name; i++) {
 		/* No way to report errors from here, so just ignore them and hope
 		 * for segfault */
 		PyModule_AddIntConstant(Module, cwiid_constants[i].name,
-		                        cwiid_constants[i].value);
+								cwiid_constants[i].value);
 	}
 
-	if (!(CObj = PyCObject_FromVoidPtr(ConvertMesgArray, NULL))) {
-		return;
+	if (!(CCapsule = PyCapsule_New(ConvertMesgArray, "dynamr", NULL))) {
+		return NULL;
 	}
-	PyModule_AddObject(Module, "ConvertMesgArray", CObj);
+	PyModule_AddObject(Module, "ConvertMesgArray", CCapsule);
+	
+	return Module;
 }
-
