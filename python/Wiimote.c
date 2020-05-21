@@ -561,6 +561,7 @@ static PyObject *Wiimote_get_state(Wiimote* self, void *closure)
 		break;
 	case CWIID_EXT_MOTIONPLUS:
 		if (state.rpt_mode & CWIID_RPT_MOTIONPLUS) {
+#ifdef CWIID_RPT_NUNCHUK_MOTIONPLUS_PASSTHROUGH	
 			PyExt = Py_BuildValue("{s:(I,I,I),s:(I,I,I)}",
 		                          "angle_rate",
                                   state.ext.motionplus.angle_rate[CWIID_PHI],
@@ -570,6 +571,13 @@ static PyObject *Wiimote_get_state(Wiimote* self, void *closure)
                                   state.ext.motionplus.low_speed[CWIID_PHI],
                                   state.ext.motionplus.low_speed[CWIID_THETA],
                                   state.ext.motionplus.low_speed[CWIID_PSI]);
+#else
+			PyExt = Py_BuildValue("{s:(I,I,I)}",
+		                          "angle_rate",
+                                  state.ext.motionplus.angle_rate[CWIID_PHI],
+                                  state.ext.motionplus.angle_rate[CWIID_THETA],
+                                  state.ext.motionplus.angle_rate[CWIID_PSI]);
+#endif
 
 			if (!PyExt) {
 				Py_DECREF(PyState);
@@ -1014,6 +1022,7 @@ PyObject *ConvertMesgArray(int mesg_count, union cwiid_mesg mesg[])
 			               mesg[i].balance_mesg.left_bottom);
 			break;
 		case CWIID_MESG_MOTIONPLUS:
+#ifdef CWIID_RPT_NUNCHUK_MOTIONPLUS_PASSTHROUGH	
 			mesgVal = Py_BuildValue("{s:(I,I,I),s:(I,I,I)}",
 			                        "angle_rate",
                                     mesg[i].motionplus_mesg.angle_rate[CWIID_PHI],
@@ -1023,6 +1032,13 @@ PyObject *ConvertMesgArray(int mesg_count, union cwiid_mesg mesg[])
                                     mesg[i].motionplus_mesg.low_speed[CWIID_PHI],
                                     mesg[i].motionplus_mesg.low_speed[CWIID_THETA],
                                     mesg[i].motionplus_mesg.low_speed[CWIID_PSI]);
+#else
+			mesgVal = Py_BuildValue("{s:(I,I,I)",
+			                        "angle_rate",
+                                    mesg[i].motionplus_mesg.angle_rate[CWIID_PHI],
+                                    mesg[i].motionplus_mesg.angle_rate[CWIID_THETA],
+                                    mesg[i].motionplus_mesg.angle_rate[CWIID_PSI]);
+#endif
                                     
 			break;
 		case CWIID_MESG_ERROR:
