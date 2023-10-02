@@ -45,6 +45,16 @@ if test "$YACC" != "bison -y"; then
 fi
 
 AC_ARG_WITH(
+	[pkgmod],
+	[AS_HELP_STRING([--with-pkgmod],[specify gtk+ and gthread, default "gtk+-2.0 gthread-2.0"])],
+	[case $withval in 
+		*)
+			pkg_modules=$withval
+		;;
+	esac],
+	[pkg_modules="gtk+-2.0 >= 2.0.0 gthread-2.0"])
+
+AC_ARG_WITH(
 	[python],
 	[AS_HELP_STRING([--without-python],[compile without python support])],
 	[case $withval in 
@@ -127,7 +137,6 @@ else
 fi
 AC_SUBST(LDCONFIG)
 
-pkg_modules="gtk+-2.0 >= 2.0.0 gthread-2.0"
 PKG_CHECK_MODULES([GTK], [$pkg_modules])
 AC_SUBST(GTK_CFLAGS)
 AC_SUBST(GTK_LIBS)
