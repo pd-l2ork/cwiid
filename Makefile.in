@@ -10,7 +10,7 @@ ifdef PYTHON
 BIND_DIRS = python
 endif
 
-SUB_DIRS = $(LIB_DIRS) $(BIN_DIRS) $(DOC_DIRS) $(BIND_DIRS) wmdemo
+SUB_DIRS = $(LIB_DIRS) $(BIN_DIRS) $(DOC_DIRS) $(BIND_DIRS) #wmdemo
 
 all install clean distclean uninstall: TARGET += $(MAKECMDGOALS)
 
